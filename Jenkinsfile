@@ -4,9 +4,9 @@ pipeline {
     environment {
         IMAGE_NAME = 'abhiwable4/cw2-server'
         IMAGE_TAG = '1.0'
-        DOCKER_CREDENTIALS_ID = 'dockerhub-login'      // Update this to match your Jenkins credentials ID
-        GITHUB_CREDENTIALS_ID = 'github-token_CW2'     // Already correct
-        KUBECONFIG = '/home/ubuntu/.kube/config'       // Adjust path if needed on your production server
+        DOCKER_CREDENTIALS_ID = 'dockerhub-login'      // Your Jenkins DockerHub credentials ID
+        GITHUB_CREDENTIALS_ID = 'github-token_CW2'     // Your GitHub token credentials ID
+        KUBECONFIG = '/home/ubuntu/.kube/config'       // Path on the production server
     }
 
     stages {
@@ -52,10 +52,10 @@ pipeline {
             steps {
                 sshagent (credentials: ['production-server-ssh']) {
                     sh """
-                    ssh -o StrictHostKeyChecking=no ubuntu@<PRODUCTION_SERVER_IP> << EOF
-                        kubectl set image deployment/cw2-deployment cw2-server=$IMAGE_NAME:$IMAGE_TAG --kubeconfig=$KUBECONFIG
-                        kubectl rollout status deployment/cw2-deployment --kubeconfig=$KUBECONFIG
-                    EOF
+                        ssh -o StrictHostKeyChecking=no ubuntu@98.86.205.139 << EOF
+                            kubectl set image deployment/cw2-deployment cw2-server=$IMAGE_NAME:$IMAGE_TAG --kubeconfig=$KUBECONFIG
+                            kubectl rollout status deployment/cw2-deployment --kubeconfig=$KUBECONFIG
+                        EOF
                     """
                 }
             }
@@ -69,11 +69,11 @@ pipeline {
         }
 
         success {
-            echo 'Pipeline completed successfully!'
+            echo '✅ Pipeline completed successfully!'
         }
 
         failure {
-            echo 'Pipeline failed. Check logs for details.'
+            echo '❌ Pipeline failed. Check logs for details.'
         }
     }
 }
