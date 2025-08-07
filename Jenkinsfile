@@ -4,12 +4,17 @@ pipeline {
     environment {
         IMAGE_NAME = 'abhiwable4/cw2-server'
         IMAGE_TAG = '1.0'
+        DOCKER_CREDENTIALS_ID = 'dockerhub-login'      // Update this to match your Jenkins credentials ID
+        GITHUB_CREDENTIALS_ID = 'github-token_CW2'     // Already correct
+        KUBECONFIG = '/home/ubuntu/.kube/config'       // Adjust path if needed on your production server
     }
 
     stages {
         stage('Checkout') {
             steps {
-                git url: 'https://github.com/abhi1o1/devops-cw2.git', branch: 'main', credentialsId: 'github-token_CW2'
+                git url: 'https://github.com/abhi1o1/devops-cw2.git',
+                    branch: 'main',
+                    credentialsId: "${GITHUB_CREDENTIALS_ID}"
             }
         }
 
@@ -22,19 +27,10 @@ pipeline {
         stage('Test Container') {
             steps {
                 script {
-                    // Clean up old container if exists
                     sh 'docker rm -f test-container || true'
-                    
-                    // Run container in detached mode
                     sh 'docker run -d --name test-container -p 8081:8081 $IMAGE_NAME:$IMAGE_TAG'
-                    
-                    // Wait for the container to start
                     sh 'sleep 10'
-
-                    // Confirm it’s running
                     sh 'docker ps | grep test-container'
-
-                    // Stop and remove container after testing
                     sh 'docker stop test-container'
                     sh 'docker rm test-container'
                 }
@@ -43,11 +39,24 @@ pipeline {
 
         stage('Push to DockerHub') {
             steps {
-                withCredentials([usernamePassword(credentialsId: 'dockerhub-password-id', usernameVariable: 'DOCKER_USERNAME', passwordVariable: 'DOCKER_PASSWORD')]) {
-                    sh '''
-                        echo $DOCKER_PASSWORD | docker login -u $DOCKER_USERNAME --password-stdin
+                withCredentials([usernamePassword(credentialsId: "${DOCKER_CREDENTIALS_ID}", passwordVariable: 'DOCKER_PASSWORD', usernameVariable: 'DOCKER_USERNAME')]) {
+                    sh """
+                        echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
                         docker push $IMAGE_NAME:$IMAGE_TAG
-                    '''
+                    """
+                }
+            }
+        }
+
+        stage('Deploy to Kubernetes') {
+            steps {
+                sshagent (credentials: ['production-server-ssh']) {
+                    sh """
+                    ssh -o StrictHostKeyChecking=no ubuntu@<PRODUCTION_SERVER_IP> << EOF
+                        kubectl set image deployment/cw2-deployment cw2-server=$IMAGE_NAME:$IMAGE_TAG --kubeconfig=$KUBECONFIG
+                        kubectl rollout status deployment/cw2-deployment --kubeconfig=$KUBECONFIG
+                    EOF
+                    """
                 }
             }
         }
@@ -55,14 +64,16 @@ pipeline {
 
     post {
         always {
-            echo 'Cleaning up dangling Docker resources...'
-            sh 'docker image prune -f || true'
+            echo 'Cleaning up...'
+            sh 'docker image prune -f'
         }
-        failure {
-            echo 'Pipeline failed.'
-        }
+
         success {
             echo 'Pipeline completed successfully!'
+        }
+
+        failure {
+            echo 'Pipeline failed. Check logs for details.'
         }
     }
 }
