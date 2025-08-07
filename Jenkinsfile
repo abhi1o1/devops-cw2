@@ -57,7 +57,7 @@ pipeline {
 
                         docker run --rm \
                             -v \$HOME/.kube:/root/.kube \
-                            -v $(pwd):/app \
+                            -v \$(pwd):/app \
                             -w /app \
                             bitnami/kubectl:latest \
                             kubectl apply -f deployment.yaml
@@ -80,4 +80,3 @@ pipeline {
         }
     }
 }
-
