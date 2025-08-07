@@ -4,34 +4,37 @@ pipeline {
     environment {
         IMAGE_NAME = 'abhiwable4/cw2-server'
         IMAGE_TAG = '1.0'
-        DOCKER_IMAGE = "${IMAGE_NAME}:${IMAGE_TAG}"
     }
 
     stages {
         stage('Checkout') {
             steps {
-                git branch: 'main', url: 'https://github.com/abhi1o1/devops-cw2.git'
+                git url: 'https://github.com/abhi1o1/devops-cw2.git', branch: 'main', credentialsId: 'github-token_CW2'
             }
         }
 
         stage('Build Docker Image') {
             steps {
-                sh 'docker build -t $DOCKER_IMAGE .'
+                sh 'docker build -t $IMAGE_NAME:$IMAGE_TAG .'
             }
         }
 
         stage('Test Container') {
             steps {
                 script {
-                    // Stop and remove any running container with same name (ignore errors)
+                    // Clean up old container if exists
                     sh 'docker rm -f test-container || true'
-                    // Run test container
-                    sh 'docker run -d --name test-container -p 8081:8081 $DOCKER_IMAGE'
-                    // Wait for it to start
+                    
+                    // Run container in detached mode
+                    sh 'docker run -d --name test-container -p 8081:8081 $IMAGE_NAME:$IMAGE_TAG'
+                    
+                    // Wait for the container to start
                     sh 'sleep 10'
-                    // Check if container is running
+
+                    // Confirm it’s running
                     sh 'docker ps | grep test-container'
-                    // Clean up
+
+                    // Stop and remove container after testing
                     sh 'docker stop test-container'
                     sh 'docker rm test-container'
                 }
@@ -40,18 +43,26 @@ pipeline {
 
         stage('Push to DockerHub') {
             steps {
-                withCredentials([usernamePassword(
-                    credentialsId: 'dockerhub-password-id',
-                    usernameVariable: 'DOCKER_USERNAME',
-                    passwordVariable: 'DOCKER_PASSWORD'
-                )]) {
+                withCredentials([usernamePassword(credentialsId: 'dockerhub-password-id', usernameVariable: 'DOCKER_USERNAME', passwordVariable: 'DOCKER_PASSWORD')]) {
                     sh '''
-                        echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
-                        docker push $DOCKER_IMAGE
-                        docker logout
+                        echo $DOCKER_PASSWORD | docker login -u $DOCKER_USERNAME --password-stdin
+                        docker push $IMAGE_NAME:$IMAGE_TAG
                     '''
                 }
             }
+        }
+    }
+
+    post {
+        always {
+            echo 'Cleaning up dangling Docker resources...'
+            sh 'docker image prune -f || true'
+        }
+        failure {
+            echo 'Pipeline failed.'
+        }
+        success {
+            echo 'Pipeline completed successfully!'
         }
     }
 }
