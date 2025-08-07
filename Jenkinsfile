@@ -3,7 +3,7 @@ pipeline {
 
     environment {
         DOCKER_IMAGE = 'abhiwable4/cw2-server:1.0'
-        DOCKERHUB_CREDENTIALS = credentials('dockerhub-password-id')
+        DOCKER_CREDENTIALS = credentials('dockerhub-password-id')
     }
 
     stages {
@@ -15,23 +15,28 @@ pipeline {
 
         stage('Build Docker Image') {
             steps {
-                script {
-                    sh 'docker build -t $DOCKER_IMAGE .'
-                }
+                sh 'docker build -t $DOCKER_IMAGE .'
             }
         }
 
         stage('Test Container') {
             steps {
                 script {
-                    sh '''
-                        docker rm -f test-container || true
-                        docker run -d --name test-container -p 8081:8081 $DOCKER_IMAGE
-                        sleep 10
-                        docker ps | grep test-container
-                        docker stop test-container
-                        docker rm test-container
-                    '''
+                    // Clean up any existing container
+                    sh 'docker rm -f test-container || true'
+                    
+                    // Run container for testing
+                    sh 'docker run -d --name test-container -p 8081:8081 $DOCKER_IMAGE'
+                    
+                    // Wait for container to start
+                    sh 'sleep 10'
+                    
+                    // Check container status
+                    sh 'docker ps | grep test-container'
+                    
+                    // Stop and remove container after testing
+                    sh 'docker stop test-container'
+                    sh 'docker rm test-container'
                 }
             }
         }
@@ -39,8 +44,9 @@ pipeline {
         stage('Push to DockerHub') {
             steps {
                 script {
+                    // Login and push to Docker Hub
                     sh '''
-                        echo $DOCKERHUB_CREDENTIALS_PSW | docker login -u $DOCKERHUB_CREDENTIALS_USR --password-stdin
+                        echo "$DOCKER_CREDENTIALS_PSW" | docker login -u "$DOCKER_CREDENTIALS_USR" --password-stdin
                         docker push $DOCKER_IMAGE
                         docker logout
                     '''
