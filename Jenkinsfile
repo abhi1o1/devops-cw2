@@ -3,6 +3,7 @@ pipeline {
 
     environment {
         DOCKER_IMAGE = 'abhiwable4/cw2-server:1.0'
+        DOCKERHUB_CREDENTIALS = credentials('dockerhub-password-id')
     }
 
     stages {
@@ -14,30 +15,35 @@ pipeline {
 
         stage('Build Docker Image') {
             steps {
-                sh "docker build -t $DOCKER_IMAGE ."
+                script {
+                    sh 'docker build -t $DOCKER_IMAGE .'
+                }
             }
         }
 
         stage('Test Container') {
             steps {
-                sh """
-                   docker run -d --name test-container -p 8081:8081 $DOCKER_IMAGE
-                   sleep 10
-                   docker ps | grep test-container
-                   docker stop test-container
-                   docker rm test-container
-                """
+                script {
+                    sh '''
+                        docker rm -f test-container || true
+                        docker run -d --name test-container -p 8081:8081 $DOCKER_IMAGE
+                        sleep 10
+                        docker ps | grep test-container
+                        docker stop test-container
+                        docker rm test-container
+                    '''
+                }
             }
         }
 
         stage('Push to DockerHub') {
             steps {
-                withCredentials([usernamePassword(credentialsId: 'dockerhub-password-id', usernameVariable: 'DOCKER_USERNAME', passwordVariable: 'DOCKER_PASSWORD')]) {
-                    sh """
-                       echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
-                       docker push $DOCKER_IMAGE
-                       docker logout
-                    """
+                script {
+                    sh '''
+                        echo $DOCKERHUB_CREDENTIALS_PSW | docker login -u $DOCKERHUB_CREDENTIALS_USR --password-stdin
+                        docker push $DOCKER_IMAGE
+                        docker logout
+                    '''
                 }
             }
         }
