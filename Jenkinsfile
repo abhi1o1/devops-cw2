@@ -15,24 +15,21 @@ pipeline {
 
         stage('Build Docker Image') {
             steps {
-                sh 'docker build -t ${IMAGE_NAME}:${IMAGE_TAG} .'
+                sh 'docker build -t $IMAGE_NAME:$IMAGE_TAG .'
             }
         }
 
         stage('Test Container') {
             steps {
                 script {
-                    // Stop and remove old test container if it exists
-                    sh 'docker rm -f test-container || true'
-                    // Run container in background
-                    sh 'docker run -d --name test-container -p 8081:8081 ${IMAGE_NAME}:${IMAGE_TAG}'
-                    // Wait for app to start
-                    sh 'sleep 10'
-                    // Confirm it's running
-                    sh 'docker ps | grep test-container'
-                    // Stop and clean up
-                    sh 'docker stop test-container'
-                    sh 'docker rm test-container'
+                    sh '''
+                        docker rm -f test-container || true
+                        docker run -d --name test-container -p 8081:8081 $IMAGE_NAME:$IMAGE_TAG
+                        sleep 10
+                        docker ps | grep test-container
+                        docker stop test-container
+                        docker rm test-container
+                    '''
                 }
             }
         }
@@ -41,8 +38,8 @@ pipeline {
             steps {
                 withCredentials([usernamePassword(credentialsId: 'dockerhub-password-id', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
                     sh '''
-                        echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin
-                        docker push ${IMAGE_NAME}:${IMAGE_TAG}
+                        echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+                        docker push $IMAGE_NAME:$IMAGE_TAG
                         docker logout
                     '''
                 }
@@ -52,9 +49,6 @@ pipeline {
         stage('Deploy to Kubernetes') {
             steps {
                 script {
-                    // Optional: update your kubeconfig if not already done
-                    // sh 'mkdir -p ~/.kube && cp /path/to/kubeconfig ~/.kube/config'
-
                     sh '''
                         docker pull bitnami/kubectl:latest
                         docker run --rm \
@@ -69,3 +63,15 @@ pipeline {
     }
 
     post {
+        always {
+            echo '🧹 Cleaning up Docker images...'
+            sh 'docker image prune -f'
+        }
+        success {
+            echo '✅ Pipeline completed successfully.'
+        }
+        failure {
+            echo '❌ Pipeline failed. Check logs above.'
+        }
+    }
+}
