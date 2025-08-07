@@ -2,21 +2,21 @@ pipeline {
     agent any
 
     environment {
-        DOCKER_USER = 'abhiwable4'
-        DOCKER_PASS = credentials('dockerhub-password-id')  // your updated DockerHub password credential ID
-        KUBECONFIG = '/home/ubuntu/.kube/config'             // path to your kubeconfig file
+        // Removed DOCKER_USER here; will come from credentials
+        KUBECONFIG = '/home/ubuntu/.kube/config'
     }
 
     stages {
-        stage('Declarative: Checkout SCM') {
+        stage('Checkout SCM') {
             steps {
-                checkout scm
-            }
-        }
-
-        stage('Checkout') {
-            steps {
-                git credentialsId: 'github-token_CW2', url: 'https://github.com/abhi1o1/devops-cw2.git', branch: 'main'
+                checkout([
+                    $class: 'GitSCM', 
+                    branches: [[name: '*/main']], 
+                    userRemoteConfigs: [[
+                        url: 'https://github.com/abhi1o1/devops-cw2.git', 
+                        credentialsId: 'github-token_CW2'
+                    ]]
+                ])
             }
         }
 
@@ -41,18 +41,19 @@ pipeline {
 
         stage('Push to DockerHub') {
             steps {
-                withCredentials([string(credentialsId: 'dockerhub-password-id', variable: 'DOCKER_PASS')]) {
-                    sh """
+                withCredentials([usernamePassword(credentialsId: 'dockerhub-password-id', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                    sh '''
                         echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin
                         docker push abhiwable4/cw2-server:1.0
                         docker logout
-                    """
+                    '''
                 }
             }
         }
 
         stage('Deploy to Kubernetes') {
             steps {
+                // Using official kubectl image to avoid "kubectl: not found"
                 script {
                     docker.image('bitnami/kubectl:latest').inside {
                         sh "kubectl --kubeconfig=${env.KUBECONFIG} apply -f k8s/deployment.yaml"
@@ -72,4 +73,3 @@ pipeline {
         }
     }
 }
-
