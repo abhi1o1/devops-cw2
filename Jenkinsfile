@@ -5,7 +5,7 @@ pipeline {
         IMAGE_NAME = "cw2-app"
         IMAGE_TAG = "v1"
         IMAGE_TAR = "cw2-app.tar"
-        PROD_SERVER = "ubuntu@PRODUCTION_SERVER_IP_OR_HOSTNAME"  // Replace with your production server IP or hostname
+        PROD_SERVER = "98.86.205.139"  // Replace with your production server IP or hostname
     }
 
     stages {
