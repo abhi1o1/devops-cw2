@@ -8,11 +8,17 @@ pipeline {
   }
 
   stages {
-    stage('Checkout SCM') {
+    stage('Checkout') {
       steps {
         git credentialsId: 'github-token_CW2',
             url: 'https://github.com/abhi1o1/devops-cw2.git',
             branch: 'main'
+      }
+    }
+
+    stage('Verify Workspace') {
+      steps {
+        sh 'echo "Workspace Contents:" && ls -R $WORKSPACE'
       }
     }
 
@@ -25,14 +31,14 @@ pipeline {
     stage('Test Container') {
       steps {
         script {
-          sh """
+          sh '''
             docker rm -f test-container || true
             docker run -d --name test-container -p 8081:8081 ${FULL_IMAGE}
             sleep 10
             docker ps | grep test-container
             docker stop test-container
             docker rm test-container
-          """
+          '''
         }
       }
     }
@@ -44,10 +50,10 @@ pipeline {
           usernameVariable: 'DH_USER',
           passwordVariable: 'DH_PASS'
         )]) {
-          sh """
+          sh '''
             echo $DH_PASS | docker login -u $DH_USER --password-stdin
             docker push ${FULL_IMAGE}
-          """
+          '''
         }
       }
     }
@@ -55,9 +61,9 @@ pipeline {
     stage('Install Kubernetes Tools') {
       steps {
         ansiblePlaybook(
-          installation: 'ansible',             // From Global Tool Configuration
-          inventory: 'ansible/inventories/production/hosts',
-          playbook: 'ansible/playbooks/deploy_k8s.yml',
+          playbook: 'ansible/deploy_k8s.yml',
+          inventory: 'ansible/hosts',
+          installation: 'ansible',           // Name of your configured Ansible installation
           credentialsId: 'ssh-prod-cred',
           colorized: true,
           hostKeyChecking: false
@@ -68,13 +74,13 @@ pipeline {
     stage('Deploy to Kubernetes') {
       steps {
         ansiblePlaybook(
+          playbook: 'ansible/k8s_deploy.yml',
+          inventory: 'ansible/hosts',
           installation: 'ansible',
-          inventory: 'ansible/inventories/production/hosts',
-          playbook: 'ansible/playbooks/k8s_deploy.yml',
           credentialsId: 'ssh-prod-cred',
           colorized: true,
           extraVars: [
-            image_tag: "${env.IMAGE_TAG}"
+            image_tag: "${IMAGE_TAG}"
           ]
         )
       }
@@ -83,7 +89,7 @@ pipeline {
 
   post {
     always {
-      echo "Build ${env.BUILD_NUMBER} completed at ${new Date()}."
+      echo "Build #${env.BUILD_NUMBER} finished at ${new Date()} with status: ${currentBuild.currentResult}"
     }
   }
 }
