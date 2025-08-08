@@ -52,11 +52,25 @@ pipeline {
       }
     }
 
-    stage('Deploy via Ansible') {
+    stage('Install Kubernetes Tools') {
       steps {
         ansiblePlaybook(
-          playbook: 'deploy.yml',
-          inventory: 'hosts',
+          installation: 'ansible',             // From Global Tool Configuration
+          inventory: 'ansible/inventories/production/hosts',
+          playbook: 'ansible/playbooks/deploy_k8s.yml',
+          credentialsId: 'ssh-prod-cred',
+          colorized: true,
+          hostKeyChecking: false
+        )
+      }
+    }
+
+    stage('Deploy to Kubernetes') {
+      steps {
+        ansiblePlaybook(
+          installation: 'ansible',
+          inventory: 'ansible/inventories/production/hosts',
+          playbook: 'ansible/playbooks/k8s_deploy.yml',
           credentialsId: 'ssh-prod-cred',
           colorized: true,
           extraVars: [
@@ -69,7 +83,7 @@ pipeline {
 
   post {
     always {
-      echo "Build ${env.BUILD_NUMBER} completed successfully at ${new Date()}."
+      echo "Build ${env.BUILD_NUMBER} completed at ${new Date()}."
     }
   }
 }
