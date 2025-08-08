@@ -63,10 +63,11 @@ pipeline {
         ansiblePlaybook(
           playbook: 'ansible/deploy_k8s.yml',
           inventory: 'ansible/hosts',
-          installation: 'ansible',           // Name of your configured Ansible installation
+          installation: 'ansible',
           credentialsId: 'ssh-prod-cred',
           colorized: true,
-          hostKeyChecking: false
+          hostKeyChecking: false,          // Disables SSH host key check for this step
+          disableHostKeyChecking: true     // Plugin-level override
         )
       }
     }
@@ -79,9 +80,9 @@ pipeline {
           installation: 'ansible',
           credentialsId: 'ssh-prod-cred',
           colorized: true,
-          extraVars: [
-            image_tag: "${IMAGE_TAG}"
-          ]
+          hostKeyChecking: false,           // Disables SSH host key check
+          disableHostKeyChecking: true,     // Plugin-level override
+          extraVars: [ image_tag: "${IMAGE_TAG}" ]
         )
       }
     }
