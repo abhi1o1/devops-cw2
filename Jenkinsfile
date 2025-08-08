@@ -3,7 +3,7 @@ pipeline {
 
   environment {
     IMAGE_NAME = 'abhiwable4/cw2-server'
-    IMAGE_TAG  = "${env.BUILD_NUMBER}"        // Dynamic tag using Jenkins build number
+    IMAGE_TAG  = "${env.BUILD_NUMBER}"
     FULL_IMAGE = "${IMAGE_NAME}:${IMAGE_TAG}"
   }
 
@@ -40,8 +40,8 @@ pipeline {
     stage('Push Docker Image') {
       steps {
         withCredentials([usernamePassword(
-          credentialsId: 'dockerhub-password-id', 
-          usernameVariable: 'DH_USER', 
+          credentialsId: 'dockerhub-password-id',
+          usernameVariable: 'DH_USER',
           passwordVariable: 'DH_PASS'
         )]) {
           sh """
@@ -55,13 +55,12 @@ pipeline {
     stage('Deploy via Ansible') {
       steps {
         ansiblePlaybook(
-          installation: 'ansible',           // Configured in Manage Jenkins → Global Tool Configuration
-          inventory: 'hosts',                // Inventory file in your repo
-          playbook: 'deploy.yml',            // Your Ansible playbook
-          credentialsId: 'ssh-prod-cred',    // SSH key credential for your production server
+          playbook: 'deploy.yml',
+          inventory: 'hosts',
+          credentialsId: 'ssh-prod-cred',
           colorized: true,
           extraVars: [
-            [key: 'image_tag', secretValue: env.IMAGE_TAG]
+            image_tag: "${env.IMAGE_TAG}"
           ]
         )
       }
@@ -70,7 +69,7 @@ pipeline {
 
   post {
     always {
-      echo "Build ${env.BUILD_NUMBER} completed at ${new Date()}"
+      echo "Build ${env.BUILD_NUMBER} completed successfully at ${new Date()}."
     }
   }
 }
