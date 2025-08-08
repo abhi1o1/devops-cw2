@@ -48,9 +48,9 @@ pipeline {
       }
     }
 
-    stage('Install Kubernetes Tools & Deploy') {
+    stage('Deploy to Kubernetes') {
       steps {
-        // Use Jenkins-stored SSH key explicitly
+        // Inject the Jenkins-stored SSH key
         withCredentials([sshUserPrivateKey(
           credentialsId: '3eecce0d-0c4b-40d4-be0d-6febab5bc0fe',
           keyFileVariable: 'SSH_KEY',
@@ -58,10 +58,9 @@ pipeline {
         )]) {
           sh '''
             ansible-playbook ansible/deploy_k8s.yml -i ansible/hosts \
-              --private-key "$SSH_KEY" -u "$SSH_USER" --extra-vars "image_tag=${IMAGE_TAG}"
-
-            ansible-playbook ansible/k8s_deploy.yml -i ansible/hosts \
-              --private-key "$SSH_KEY" -u "$SSH_USER" --extra-vars "image_tag=${IMAGE_TAG}"
+              --private-key "$SSH_KEY" -u "$SSH_USER" \
+              --extra-vars "ansible_ssh_private_key_file=$SSH_KEY image_tag=${IMAGE_TAG}" \
+              -vvvv
           '''
         }
       }
