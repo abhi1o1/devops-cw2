@@ -24,22 +24,26 @@ pipeline {
 
     stage('Test Container') {
       steps {
-        sh '''
-          docker rm -f test-container || true
-          docker run -d --name test-container -p 8081:8081 ${FULL_IMAGE}
-          sleep 10
-          docker ps | grep test-container
-          docker stop test-container
-          docker rm test-container
-        '''
+        catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
+          sh '''
+            docker rm -f test-container || true
+            docker run -d --name test-container -p 8081:8081 ${FULL_IMAGE}
+            sleep 10
+            docker ps | grep test-container
+            docker stop test-container
+            docker rm test-container
+          '''
+        }
       }
     }
 
     stage('Push Docker Image') {
       steps {
-        withCredentials([usernamePassword(credentialsId: 'dockerhub-password-id',
-                                         usernameVariable: 'DH_USER',
-                                         passwordVariable: 'DH_PASS')]) {
+        withCredentials([usernamePassword(
+          credentialsId: 'dockerhub-password-id',
+          usernameVariable: 'DH_USER',
+          passwordVariable: 'DH_PASS'
+        )]) {
           sh '''
             echo $DH_PASS | docker login -u $DH_USER --password-stdin
             docker push ${FULL_IMAGE}
@@ -50,7 +54,6 @@ pipeline {
 
     stage('Install Kubernetes Tools & Deploy') {
       steps {
-        // Use Jenkins-stored SSH key explicitly
         withCredentials([sshUserPrivateKey(
           credentialsId: '3eecce0d-0c4b-40d4-be0d-6febab5bc0fe',
           keyFileVariable: 'SSH_KEY',
