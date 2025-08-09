@@ -1,2 +1,2 @@
 [production]
-98.86.205.139 ansible_user=ubuntu ansible_ssh_private_key_file=/home/ubuntu/Key_Pair_Lab5.pem
+98.86.205.139 ansible_user=ubuntu
