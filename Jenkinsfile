@@ -59,15 +59,18 @@ pipeline {
         stage('Deploy to Kubernetes') {
             steps {
                 script {
-                    sh 'kubectl apply -f ansible/deploy_k8s.yml'
+                    // Replace image tag dynamically in k8s manifest and apply it
+                    sh """
+                      sed -i 's|image: abhiwable4/cw2-server:.*|image: ${env.IMAGE_TAG}|g' ansible/k8s_deploy.yml
+                      kubectl apply -f ansible/k8s_deploy.yml
+                    """
                 }
             }
         }
 
         stage('Verify Deployment') {
             steps {
-                echo 'Verify deployment steps here...'
-                // You can add kubectl get pods, logs, etc. as needed
+                echo 'Add verification steps here (kubectl get pods, logs, etc.)'
             }
         }
     }
