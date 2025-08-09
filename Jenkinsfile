@@ -1,20 +1,19 @@
-pipeline {
+kpipeline {
     agent any
 
     environment {
-        DOCKER_HUB_CREDENTIALS = credentials('dockerhub-password-id')
-        GITHUB_CREDENTIALS = credentials('github-token_CW2')
+        DOCKER_IMAGE = "abhiwable4/cw2-server"
+        DOCKER_TAG = "${env.BUILD_NUMBER}"
     }
 
     stages {
         stage('Checkout SCM') {
             steps {
-                checkout([
-                    $class: 'GitSCM', 
-                    branches: [[name: 'main']],
+                checkout([$class: 'GitSCM',
+                    branches: [[name: '*/main']],
                     userRemoteConfigs: [[
                         url: 'https://github.com/abhi1o1/devops-cw2.git',
-                        credentialsId: "${GITHUB_CREDENTIALS}"
+                        credentialsId: 'github-token_CW2'
                     ]]
                 ])
             }
@@ -23,9 +22,7 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 script {
-                    def imageTag = "abhiwable4/cw2-server:${env.BUILD_NUMBER}"
-                    sh "docker build -t ${imageTag} ."
-                    env.IMAGE_TAG = imageTag
+                    sh "docker build -t ${DOCKER_IMAGE}:${DOCKER_TAG} ."
                 }
             }
         }
@@ -33,9 +30,9 @@ pipeline {
         stage('Test Container') {
             steps {
                 script {
-                    catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+                    catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
                         sh "docker rm -f test-container || true"
-                        sh "docker run -d --name test-container -p 8081:8081 ${env.IMAGE_TAG}"
+                        sh "docker run -d --name test-container -p 8081:8081 ${DOCKER_IMAGE}:${DOCKER_TAG}"
                         sleep 10
                         sh "docker exec test-container curl -f http://localhost:8081"
                         sh "docker stop test-container"
@@ -47,42 +44,47 @@ pipeline {
 
         stage('Push to DockerHub') {
             steps {
-                script {
-                    withCredentials([usernamePassword(credentialsId: 'dockerhub-password-id', passwordVariable: 'DOCKER_PASS', usernameVariable: 'DOCKER_USER')]) {
-                        sh "echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin"
-                        sh "docker push ${env.IMAGE_TAG}"
-                    }
+                withCredentials([usernamePassword(credentialsId: 'docker-hub-credentials', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                    sh '''
+                        echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin
+                        docker push ${DOCKER_IMAGE}:${DOCKER_TAG}
+                    '''
                 }
+            }
+        }
+
+        stage('List Ansible Folder') {
+            steps {
+                sh 'ls -la ansible/'
             }
         }
 
         stage('Deploy to Kubernetes') {
             steps {
                 script {
-                    // Change deploy_k8s.yml to your actual k8s manifest file
-                    sh 'kubectl apply -f deploy_k8s.yml'
+                    // Apply the k8s manifest inside ansible folder
+                    sh 'kubectl apply -f ansible/deploy_k8s.yml'
+                    // If you want to use k8s_deploy.yml, replace above line accordingly
                 }
             }
         }
 
         stage('Verify Deployment') {
             steps {
-                echo 'Verify deployment steps here...'
-                // You can add kubectl get pods, logs, etc. as needed
+                // Example: check pods running, or your own verification
+                sh 'kubectl get pods'
             }
         }
     }
 
     post {
         always {
-            echo 'Cleaning up unused Docker images'
-            sh 'docker image prune -f'
+            echo 'Cleaning up unused Docker images...'
+            sh 'docker image prune -f || true'
         }
         failure {
             echo 'Pipeline failed!'
         }
-        success {
-            echo 'Pipeline completed successfully!'
-        }
     }
 }
+
