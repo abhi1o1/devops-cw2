@@ -56,17 +56,16 @@ pipeline {
     stage('Deploy to Kubernetes with Ansible') {
       steps {
         withCredentials([sshUserPrivateKey(
-          credentialsId: '3eecce0d-0c4b-40d4-be0d-6febab5bc0fe',
+          credentialsId: 'SSH_KEY',
           keyFileVariable: 'SSH_KEY',
           usernameVariable: 'SSH_USER'
         )]) {
-          // Use double quotes outside and single quotes inside shell script so Groovy variables are interpolated correctly
           sh """
             ansible-playbook ansible/deploy_k8s.yml -i ansible/hosts \\
-              --private-key '\$SSH_KEY' -u '\$SSH_USER' --extra-vars 'image_tag=${IMAGE_TAG}'
+              --private-key \$SSH_KEY -u \$SSH_USER --extra-vars 'image_tag=${IMAGE_TAG}'
 
             ansible-playbook ansible/k8s_deploy.yml -i ansible/hosts \\
-              --private-key '\$SSH_KEY' -u '\$SSH_USER' --extra-vars 'image_tag=${IMAGE_TAG}'
+              --private-key \$SSH_KEY -u \$SSH_USER --extra-vars 'image_tag=${IMAGE_TAG}'
           """
         }
       }
