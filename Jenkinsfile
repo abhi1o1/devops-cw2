@@ -1,63 +1,88 @@
 pipeline {
-  agent any
-  environment {
-    IMAGE_NAME = 'abhiwable4/cw2-server'
-    IMAGE_TAG  = "${env.BUILD_NUMBER}"
-    FULL_IMAGE = "${IMAGE_NAME}:${IMAGE_TAG}"
-  }
-  stages {
-    stage('Checkout') {
-      steps {
-        git credentialsId: 'github-token_CW2',
-            url: 'https://github.com/abhi1o1/devops-cw2.git',
-            branch: 'main'
-      }
+    agent any
+
+    environment {
+        DOCKER_HUB_CREDENTIALS = credentials('dockerhub-password-id')
+        GITHUB_CREDENTIALS = credentials('github-token_CW2')
     }
-    stage('Build Docker Image') {
-      steps {
-        sh "docker build -t ${FULL_IMAGE} ."
-      }
-    }
-    stage('Test Container') {
-      steps {
-        catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
-          sh '''
-            docker rm -f test-container || true
-            docker run -d --name test-container -p 8081:8081 ${FULL_IMAGE}
-            sleep 10
-            docker ps | grep test-container
-            docker exec test-container curl -f http://localhost:8081
-            docker stop test-container
-            docker rm test-container
-          '''
+
+    stages {
+        stage('Checkout SCM') {
+            steps {
+                checkout([
+                    $class: 'GitSCM', 
+                    branches: [[name: 'main']],
+                    userRemoteConfigs: [[
+                        url: 'https://github.com/abhi1o1/devops-cw2.git',
+                        credentialsId: "${GITHUB_CREDENTIALS}"
+                    ]]
+                ])
+            }
         }
-      }
-    }
-    stage('Push to DockerHub') {
-      steps {
-        withCredentials([usernamePassword(credentialsId: 'dockerhub-password-id', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
-          sh 'echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin'
-          sh "docker push ${FULL_IMAGE}"
+
+        stage('Build Docker Image') {
+            steps {
+                script {
+                    def imageTag = "abhiwable4/cw2-server:${env.BUILD_NUMBER}"
+                    sh "docker build -t ${imageTag} ."
+                    env.IMAGE_TAG = imageTag
+                }
+            }
         }
-      }
+
+        stage('Test Container') {
+            steps {
+                script {
+                    catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+                        sh "docker rm -f test-container || true"
+                        sh "docker run -d --name test-container -p 8081:8081 ${env.IMAGE_TAG}"
+                        sleep 10
+                        sh "docker exec test-container curl -f http://localhost:8081"
+                        sh "docker stop test-container"
+                        sh "docker rm test-container"
+                    }
+                }
+            }
+        }
+
+        stage('Push to DockerHub') {
+            steps {
+                script {
+                    withCredentials([usernamePassword(credentialsId: 'dockerhub-password-id', passwordVariable: 'DOCKER_PASS', usernameVariable: 'DOCKER_USER')]) {
+                        sh "echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin"
+                        sh "docker push ${env.IMAGE_TAG}"
+                    }
+                }
+            }
+        }
+
+        stage('Deploy to Kubernetes') {
+            steps {
+                script {
+                    // Change deploy_k8s.yml to your actual k8s manifest file
+                    sh 'kubectl apply -f deploy_k8s.yml'
+                }
+            }
+        }
+
+        stage('Verify Deployment') {
+            steps {
+                echo 'Verify deployment steps here...'
+                // You can add kubectl get pods, logs, etc. as needed
+            }
+        }
     }
-    stage('Deploy to Kubernetes') {
-      steps {
-        sh 'kubectl apply -f k8s/deployment.yaml'
-        sh 'kubectl apply -f k8s/service.yaml'
-      }
+
+    post {
+        always {
+            echo 'Cleaning up unused Docker images'
+            sh 'docker image prune -f'
+        }
+        failure {
+            echo 'Pipeline failed!'
+        }
+        success {
+            echo 'Pipeline completed successfully!'
+        }
     }
-    stage('Verify Deployment') {
-      steps {
-        sh 'kubectl get pods'
-        sh 'kubectl get svc'
-      }
-    }
-  }
-  post {
-    always {
-      echo 'Cleaning up unused Docker images'
-      sh 'docker image prune -f'
-    }
-  }
 }
