@@ -13,13 +13,11 @@ pipeline {
             branch: 'main'
       }
     }
-
     stage('Build Docker Image') {
       steps {
         sh "docker build -t ${FULL_IMAGE} ."
       }
     }
-
     stage('Test Container') {
       steps {
         catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
@@ -28,7 +26,6 @@ pipeline {
             docker run -d --name test-container -p 8081:8081 ${FULL_IMAGE}
             sleep 10
             docker ps | grep test-container
-            # Simple curl test inside container
             docker exec test-container curl -f http://localhost:8081
             docker stop test-container
             docker rm test-container
@@ -36,39 +33,31 @@ pipeline {
         }
       }
     }
-
     stage('Push to DockerHub') {
       steps {
-        withCredentials([usernamePassword(credentialsId: 'dockerhub-credentials', usernameVariable: 'DOCKERHUB_USER', passwordVariable: 'DOCKERHUB_PASS')]) {
-          sh '''
-            echo "$DOCKERHUB_PASS" | docker login -u "$DOCKERHUB_USER" --password-stdin
-            docker push ${FULL_IMAGE}
-          '''
+        withCredentials([usernamePassword(credentialsId: 'dockerhub-password-id', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+          sh 'echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin'
+          sh "docker push ${FULL_IMAGE}"
         }
       }
     }
-
     stage('Deploy to Kubernetes') {
       steps {
-        sh """
-          kubectl set image deployment/cw2-server cw2-server=${FULL_IMAGE} --record
-        """
+        sh 'kubectl apply -f k8s/deployment.yaml'
+        sh 'kubectl apply -f k8s/service.yaml'
       }
     }
-
     stage('Verify Deployment') {
       steps {
-        sh """
-          kubectl rollout status deployment/cw2-server
-          kubectl get pods
-        """
+        sh 'kubectl get pods'
+        sh 'kubectl get svc'
       }
     }
   }
   post {
     always {
       echo 'Cleaning up unused Docker images'
-      sh "docker image prune -f"
+      sh 'docker image prune -f'
     }
   }
 }
