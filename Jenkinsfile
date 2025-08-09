@@ -1,9 +1,9 @@
-kpipeline {
+pipeline {
     agent any
 
     environment {
-        DOCKER_HUB_CREDENTIALS = credentials('dockerhub-credentials-id')  // Update with your Jenkins Docker Hub credentials ID
-        GITHUB_CREDENTIALS = credentials('github-credentials-id')         // Update with your Jenkins GitHub credentials ID
+        DOCKER_HUB_CREDENTIALS = credentials('dockerhub-credentials-id')  // Jenkins Docker Hub credentials ID
+        GITHUB_CREDENTIALS = credentials('github-credentials-id')         // Jenkins GitHub credentials ID
     }
 
     stages {
@@ -59,7 +59,7 @@ kpipeline {
         stage('Deploy to Kubernetes') {
             steps {
                 script {
-                    // Updated path to ansible folder
+                    // Deploy Kubernetes manifests with kubectl
                     sh 'kubectl apply -f ansible/deploy_k8s.yml'
                 }
             }
@@ -68,7 +68,8 @@ kpipeline {
         stage('Verify Deployment') {
             steps {
                 script {
-                    echo "Skipping due to deploy step failure or can add verification commands here."
+                    // Optional verification step, customize as needed
+                    echo "Skipping verification or add verification commands here."
                 }
             }
         }
@@ -84,4 +85,3 @@ kpipeline {
         }
     }
 }
-
