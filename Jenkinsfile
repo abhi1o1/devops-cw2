@@ -60,13 +60,14 @@ pipeline {
           keyFileVariable: 'SSH_KEY',
           usernameVariable: 'SSH_USER'
         )]) {
-          sh '''
-            ansible-playbook ansible/deploy_k8s.yml -i ansible/hosts \
-              --private-key "$SSH_KEY" -u "$SSH_USER" --extra-vars "image_tag=${IMAGE_TAG}"
+          // Use double quotes outside and single quotes inside shell script so Groovy variables are interpolated correctly
+          sh """
+            ansible-playbook ansible/deploy_k8s.yml -i ansible/hosts \\
+              --private-key '\$SSH_KEY' -u '\$SSH_USER' --extra-vars 'image_tag=${IMAGE_TAG}'
 
-            ansible-playbook ansible/k8s_deploy.yml -i ansible/hosts \
-              --private-key "$SSH_KEY" -u "$SSH_USER" --extra-vars "image_tag=${IMAGE_TAG}"
-          '''
+            ansible-playbook ansible/k8s_deploy.yml -i ansible/hosts \\
+              --private-key '\$SSH_KEY' -u '\$SSH_USER' --extra-vars 'image_tag=${IMAGE_TAG}'
+          """
         }
       }
     }
