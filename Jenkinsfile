@@ -60,11 +60,14 @@ pipeline {
           usernameVariable: 'SSH_USER'
         )]) {
           sh '''
-            ansible-playbook ansible/deploy_k8s.yml -i ansible/hosts \
-              --private-key "$SSH_KEY" -u "$SSH_USER" --extra-vars "image_tag=${IMAGE_TAG}"
+            # Install kubectl and minikube on production server
+            ansible-playbook deploy_k8s.yml -i hosts \
+              --private-key "$SSH_KEY" -u "$SSH_USER"
 
-            ansible-playbook ansible/k8s_deploy.yml -i ansible/hosts \
-              --private-key "$SSH_KEY" -u "$SSH_USER" --extra-vars "image_tag=${IMAGE_TAG}"
+            # Deploy image to Kubernetes with dynamic image tag
+            ansible-playbook k8s_deploy.yml -i hosts \
+              --private-key "$SSH_KEY" -u "$SSH_USER" \
+              --extra-vars "image_tag=${IMAGE_TAG}"
           '''
         }
       }
